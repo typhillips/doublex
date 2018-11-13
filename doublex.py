@@ -55,8 +55,8 @@ class DoubleX(QWidget):
 		self.progress.setGeometry(0, 0, 300, 25)
 		self.progress.setMaximum(100)
 
-		self.chkResize = QCheckBox("Resize", self)						#TODO see if second argument is needed
-		self.chkConvertGS = QCheckBox("Convert to greyscale", self)		#TODO see if second argument is needed
+		self.chkResize = QCheckBox("Resize")
+		self.chkConvertGS = QCheckBox("Convert to greyscale")
 
 		self.btnExecute = QPushButton("Execute")
 		self.btnExit = QPushButton("Exit")
@@ -127,9 +127,14 @@ class DoubleX(QWidget):
 		self.thread = ImageCombine(filepairs, self.txtOutDir.text(), self.chkResize.isChecked(), self.chkConvertGS.isChecked())
 		self.thread.start()
 		self.thread.progress.connect(self.updateProgress)
-	
+		self.thread.finished.connect(self.actionCompleted)
+
 	def updateProgress(self, value):
 		self.progress.setValue(value)
+
+	def actionCompleted(self):
+		QMessageBox.information(self, "Message", "Action completed")
+		self.progress.reset()
 
 	def generateImagePairs(self):
 		"""First generate a list of random image pairs."""
@@ -175,7 +180,6 @@ class ImageCombine(QThread):
 		self.outdir = outdir
 		self.resize = resize
 		self.convertGS = convertGS
-		print("thread initialized")	#debug
 
 	def run(self):
 		"""Create the combination images."""
@@ -196,8 +200,15 @@ class ImageCombine(QThread):
 			outfname += os.path.basename(pair[1])
 
 			img3 = ImageChops.add(enhancer1.enhance(0.5), enhancer2.enhance(0.5))
+
+			if self.resize:
+				# Resize to 20% of longest dimension
+				newsize = max(img3.size) / 5
+				img3.thumbnail((newsize, newsize), Image.ANTIALIAS)
+
 			img3.save(os.path.join(self.outdir, outfname))
-			
+
+			# Send calculated progress to progress bar
 			self.progress.emit((index+1) * 100 / len(self.filepairs))
 
 
