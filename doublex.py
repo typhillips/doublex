@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QMessageBox, QFileDialog, QLa
                             QLineEdit, QHBoxLayout, QVBoxLayout, QGridLayout, QCheckBox, QAction
 from PyQt5.QtGui import QIcon
 from PyQt5.Qt import Qt
+from PyQt5 import QtCore
 
 from PIL import Image
 from PIL import ImageChops
@@ -124,25 +125,8 @@ class DoubleX(QWidget):
 		"""Create the actual double exposed images based on the specified folders."""
 		# First generate a list of random image pairs
 		filepairs = self.generateImagePairs()
-
-		for pair in filepairs:
-			if self.chkConvertGS.isChecked():
-				img1 = Image.open(pair[0]).convert('L')
-				img2 = Image.open(pair[1]).convert('L')
-			else:
-				img1 = Image.open(pair[0])
-				img2 = Image.open(pair[1])
-
-			enhancer1 = ImageEnhance.Brightness(img1)
-			enhancer2 = ImageEnhance.Brightness(img2)
-
-			# Output filename format "file1_file2.JPG" where 'file1' and 'file2' are the file name, sans extension
-			outfname = os.path.splitext(os.path.basename(pair[0]))[0]
-			outfname += "_"
-			outfname += os.path.basename(pair[1])
-
-			img3 = ImageChops.add(enhancer1.enhance(0.5), enhancer2.enhance(0.5))
-			img3.save(os.path.join(self.txtOutDir.text(), outfname))
+		self.thread = ImageCombine(filepairs, self.txtOutDir.text(), self.chkResize.isChecked(), self.chkConvertGS.isChecked())
+		self.thread.start()
 
 	def generateImagePairs(self):
 		"""First generate a list of random image pairs."""
@@ -176,6 +160,39 @@ class DoubleX(QWidget):
 
 	def exitProgram(self):
 		sys.exit()
+
+
+class ImageCombine(QtCore.QThread):
+	"""Thread object for combining image pairs."""
+	def __init__(self, filepairs, outdir, resize=False, convertGS=False):
+		QtCore.QThread.__init__(self)	#TODO replace this with super()
+		self.filepairs = filepairs
+		self.outdir = outdir
+		self.resize = resize
+		self.convertGS = convertGS
+		print("thread initialized")	#debug
+
+	def run(self):
+		"""Create the combination images."""
+		print("thread ran")	#debug
+		for pair in self.filepairs:
+			if self.convertGS:
+				img1 = Image.open(pair[0]).convert('L')
+				img2 = Image.open(pair[1]).convert('L')
+			else:
+				img1 = Image.open(pair[0])
+				img2 = Image.open(pair[1])
+
+			enhancer1 = ImageEnhance.Brightness(img1)
+			enhancer2 = ImageEnhance.Brightness(img2)
+
+			# Output filename format "file1_file2.JPG" where 'file1' and 'file2' are the file name, sans extension
+			outfname = os.path.splitext(os.path.basename(pair[0]))[0]
+			outfname += "_"
+			outfname += os.path.basename(pair[1])
+
+			img3 = ImageChops.add(enhancer1.enhance(0.5), enhancer2.enhance(0.5))
+			img3.save(os.path.join(self.outdir, outfname))
 
 
 if __name__ == '__main__':
