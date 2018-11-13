@@ -5,10 +5,10 @@ import os
 import random
 
 from PyQt5.QtWidgets import QApplication, QWidget, QMessageBox, QFileDialog, QLabel, QPushButton, \
-                            QLineEdit, QHBoxLayout, QVBoxLayout, QGridLayout, QCheckBox, QAction
+                            QLineEdit, QHBoxLayout, QVBoxLayout, QGridLayout, QCheckBox, QAction, QProgressBar
 from PyQt5.QtGui import QIcon
 from PyQt5.Qt import Qt
-from PyQt5 import QtCore
+from PyQt5.QtCore import QThread, pyqtSignal
 
 from PIL import Image
 from PIL import ImageChops
@@ -51,6 +51,10 @@ class DoubleX(QWidget):
 		self.btnBrowse2.setObjectName('Browse2')
 		self.btnBrowse3.setObjectName('Browse3')
 
+		self.progress = QProgressBar()
+		self.progress.setGeometry(0, 0, 300, 25)
+		self.progress.setMaximum(100)
+
 		self.chkResize = QCheckBox("Resize", self)						#TODO see if second argument is needed
 		self.chkConvertGS = QCheckBox("Convert to greyscale", self)		#TODO see if second argument is needed
 
@@ -82,11 +86,6 @@ class DoubleX(QWidget):
 		# Normalize column widths
 		ubox.setColumnStretch(1, 10)
 
-		# Middle layout box
-		#mbox = QHBoxLayout()
-		#mbox.addWidget(self.chkResize)
-		#mbox.addWidget(self.chkConvertGS)
-
 		# Lower layout box
 		lbox = QHBoxLayout()
 		lbox.addWidget(self.chkResize)
@@ -96,7 +95,7 @@ class DoubleX(QWidget):
 
 		box = QVBoxLayout()
 		box.addLayout(ubox)
-		#box.addLayout(mbox)
+		box.addWidget(self.progress)
 		box.addLayout(lbox)
 		self.setLayout(box)
 		self.show()
@@ -127,6 +126,10 @@ class DoubleX(QWidget):
 		filepairs = self.generateImagePairs()
 		self.thread = ImageCombine(filepairs, self.txtOutDir.text(), self.chkResize.isChecked(), self.chkConvertGS.isChecked())
 		self.thread.start()
+		self.thread.progress.connect(self.updateProgress)
+	
+	def updateProgress(self, value):
+		self.progress.setValue(value)
 
 	def generateImagePairs(self):
 		"""First generate a list of random image pairs."""
@@ -162,10 +165,12 @@ class DoubleX(QWidget):
 		sys.exit()
 
 
-class ImageCombine(QtCore.QThread):
+class ImageCombine(QThread):
 	"""Thread object for combining image pairs."""
+	progress = pyqtSignal(int)
+
 	def __init__(self, filepairs, outdir, resize=False, convertGS=False):
-		QtCore.QThread.__init__(self)	#TODO replace this with super()
+		QThread.__init__(self)	#TODO replace this with super()
 		self.filepairs = filepairs
 		self.outdir = outdir
 		self.resize = resize
@@ -174,8 +179,7 @@ class ImageCombine(QtCore.QThread):
 
 	def run(self):
 		"""Create the combination images."""
-		print("thread ran")	#debug
-		for pair in self.filepairs:
+		for index, pair in enumerate(self.filepairs):
 			if self.convertGS:
 				img1 = Image.open(pair[0]).convert('L')
 				img2 = Image.open(pair[1]).convert('L')
@@ -193,6 +197,8 @@ class ImageCombine(QtCore.QThread):
 
 			img3 = ImageChops.add(enhancer1.enhance(0.5), enhancer2.enhance(0.5))
 			img3.save(os.path.join(self.outdir, outfname))
+			
+			self.progress.emit((index+1) * 100 / len(self.filepairs))
 
 
 if __name__ == '__main__':
