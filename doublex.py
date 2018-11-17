@@ -57,7 +57,7 @@ class DoubleX(QWidget):
 		self.chkResize = QCheckBox("Resize")
 		self.chkConvertGS = QCheckBox("Convert to greyscale")
 
-		self.btnExecute = QPushButton("Execute")
+		self.btnExecute = QPushButton("Create Images")
 		self.btnExit = QPushButton("Exit")
 
 		self.txtDir1.textChanged.connect(self.refreshControls)
@@ -141,7 +141,7 @@ class DoubleX(QWidget):
 		self.txtConsole.moveCursor(QTextCursor.End)
 
 	def actionCompleted(self):
-		QMessageBox.information(self, "Message", "Action completed")
+		QMessageBox.information(self, "Complete", "Image generation completed")
 
 	def generateImagePairs(self):
 		"""First generate a list of random image pairs."""
