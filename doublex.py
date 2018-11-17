@@ -16,7 +16,7 @@ from PIL import ImageEnhance
 
 __author__ = "Ty Phillips"
 __copyright__ = "Copyright 2018"
-__version__ = "0.1 Beta"
+__version__ = "0.11 Beta"
 
 class DoubleX(QWidget):
 	"""Main widget for Double Exposure Creator."""
@@ -38,11 +38,14 @@ class DoubleX(QWidget):
 		self.lblOutDir.setText("Output Directory")
 
 		self.txtDir1 = QLineEdit()
+		self.txtDir1.setToolTip("Directory for input images")
 		self.txtDir2 = QLineEdit()
+		self.txtDir2.setToolTip("Secondary directory for input images (optional)")
 		self.txtOutDir = QLineEdit()
 		self.txtDir1.setFixedWidth(500)
 		self.txtDir2.setFixedWidth(500)
 		self.txtOutDir.setFixedWidth(500)
+		self.txtOutDir.setToolTip("Directory for output (combined) images")
 
 		self.btnBrowse1 = QPushButton("Browse")
 		self.btnBrowse2 = QPushButton("Browse")
@@ -55,10 +58,14 @@ class DoubleX(QWidget):
 		self.txtConsole.setReadOnly(True)
 
 		self.chkResize = QCheckBox("Resize")
+		self.chkResize.setToolTip("Downsize output images")
 		self.chkConvertGS = QCheckBox("Convert to greyscale")
+		self.chkConvertGS.setToolTip("Convert output images to greyscale")
 
 		self.btnExecute = QPushButton("Create Images")
+		self.btnExecute.setToolTip("Generate output (combined) images")
 		self.btnExit = QPushButton("Exit")
+		self.btnExit.setToolTip("Exit program")
 
 		self.txtDir1.textChanged.connect(self.refreshControls)
 		self.txtDir2.textChanged.connect(self.refreshControls)
@@ -126,13 +133,16 @@ class DoubleX(QWidget):
 		"""Create the actual double exposed images based on the specified folders."""
 		# First generate a list of random image pairs
 		filepairs = self.generateImagePairs()
-
-		# Clear existing console text
-		self.txtConsole.clear()
-		self.thread = ImageCombine(filepairs, self.txtOutDir.text(), self.chkResize.isChecked(), self.chkConvertGS.isChecked())
-		self.thread.start()
-		self.thread.outputInfo.connect(self.updateProgress)
-		self.thread.finished.connect(self.actionCompleted)
+		
+		if filepairs:
+			# Clear existing console text
+			self.txtConsole.clear()
+			self.thread = ImageCombine(filepairs, self.txtOutDir.text(), self.chkResize.isChecked(), self.chkConvertGS.isChecked())
+			self.thread.start()
+			self.thread.outputInfo.connect(self.updateProgress)
+			self.thread.finished.connect(self.actionCompleted)
+		else:
+			QMessageBox.warning(self, "Error", "No input images found!")
 
 	def updateProgress(self, progressString):
 		"""Display progress text output from the ImageCombine thread."""
@@ -163,24 +173,24 @@ class DoubleX(QWidget):
 				filelist2.append(filelist1.pop(random.randint(0, len(filelist1)-1)))
 
 		if len(filelist1) == 0 or len(filelist2) == 0:
-			pass #TODO display popup that no files were found
-				
-		# First filelist should be shorter or the same length as the second list
-		#   Swap lists if first one is longer
-		if len(filelist1) > len(filelist2):
-			tmplist = filelist2
-			filelist2 = filelist1
-			filelist1 = tmplist
+			return None
+		else:
+			# First filelist should be shorter or the same length as the second list
+			#   Swap lists if first one is longer
+			if len(filelist1) > len(filelist2):
+				tmplist = filelist2
+				filelist2 = filelist1
+				filelist1 = tmplist
 
-		filepairs = []
+			filepairs = []
 
-		# Create list of file pairs, with each pair itself a list
-		for i in range(len(filelist1)):
-			file1 = filelist1.pop(random.randint(0, len(filelist1)-1))	# Remove a random file from the list
-			file2 = filelist2.pop(random.randint(0, len(filelist2)-1))	# Pair it with a random file from the second list
-			filepairs.append([file1, file2])
+			# Create list of file pairs, with each pair itself a list
+			for i in range(len(filelist1)):
+				file1 = filelist1.pop(random.randint(0, len(filelist1)-1))	# Remove a random file from the list
+				file2 = filelist2.pop(random.randint(0, len(filelist2)-1))	# Pair it with a random file from the second list
+				filepairs.append([file1, file2])
 
-		return filepairs
+			return filepairs
 
 	def exitProgram(self):
 		sys.exit()
