@@ -5,8 +5,8 @@ import os
 import random
 
 from PyQt5.QtWidgets import QApplication, QWidget, QMessageBox, QFileDialog, QLabel, QPushButton, \
-                            QLineEdit, QHBoxLayout, QVBoxLayout, QGridLayout, QCheckBox, QAction, QProgressBar
-from PyQt5.QtGui import QIcon
+                            QLineEdit, QHBoxLayout, QVBoxLayout, QGridLayout, QCheckBox, QAction, QPlainTextEdit
+from PyQt5.QtGui import QIcon, QTextCursor
 from PyQt5.Qt import Qt
 from PyQt5.QtCore import QThread, pyqtSignal
 
@@ -51,9 +51,9 @@ class DoubleX(QWidget):
 		self.btnBrowse2.setObjectName('Browse2')
 		self.btnBrowse3.setObjectName('Browse3')
 
-		self.progress = QProgressBar()
-		self.progress.setGeometry(0, 0, 300, 25)
-		self.progress.setMaximum(100)
+		self.txtConsole = QPlainTextEdit()
+		self.txtConsole.setReadOnly(True)
+		#self.txtConsole.setFixedHeight(200)
 
 		self.chkResize = QCheckBox("Resize")
 		self.chkConvertGS = QCheckBox("Convert to greyscale")
@@ -95,7 +95,7 @@ class DoubleX(QWidget):
 
 		box = QVBoxLayout()
 		box.addLayout(ubox)
-		box.addWidget(self.progress)
+		box.addWidget(self.txtConsole)
 		box.addLayout(lbox)
 		self.setLayout(box)
 		self.show()
@@ -124,17 +124,20 @@ class DoubleX(QWidget):
 		"""Create the actual double exposed images based on the specified folders."""
 		# First generate a list of random image pairs
 		filepairs = self.generateImagePairs()
+
+		# Clear existing console text
+		self.txtConsole.clear()
 		self.thread = ImageCombine(filepairs, self.txtOutDir.text(), self.chkResize.isChecked(), self.chkConvertGS.isChecked())
 		self.thread.start()
-		self.thread.progress.connect(self.updateProgress)
+		self.thread.outputInfo.connect(self.updateProgress)
 		self.thread.finished.connect(self.actionCompleted)
 
-	def updateProgress(self, value):
-		self.progress.setValue(value)
+	def updateProgress(self, progressString):
+		self.txtConsole.insertPlainText(progressString + "\n")
+		self.txtConsole.moveCursor(QTextCursor.End)
 
 	def actionCompleted(self):
 		QMessageBox.information(self, "Message", "Action completed")
-		self.progress.reset()
 
 	def generateImagePairs(self):
 		"""First generate a list of random image pairs."""
@@ -172,7 +175,7 @@ class DoubleX(QWidget):
 
 class ImageCombine(QThread):
 	"""Thread object for combining image pairs."""
-	progress = pyqtSignal(int)
+	outputInfo = pyqtSignal(str)
 
 	def __init__(self, filepairs, outdir, resize=False, convertGS=False):
 		QThread.__init__(self)	#TODO replace this with super()
@@ -184,7 +187,10 @@ class ImageCombine(QThread):
 	def run(self):
 		"""Create the combination images."""
 		for index, pair in enumerate(self.filepairs):
+			self.outputInfo.emit("Combining %s and %s..." % (os.path.basename(pair[0]), os.path.basename(pair[1])))
+
 			if self.convertGS:
+				self.outputInfo.emit("Converting to greyscale...")
 				img1 = Image.open(pair[0]).convert('L')
 				img2 = Image.open(pair[1]).convert('L')
 			else:
@@ -192,12 +198,14 @@ class ImageCombine(QThread):
 				img2 = Image.open(pair[1])
 
 			if self.resize:
-				# Resize to 20% of longest dimension of smaller
+				# Resize to 20% of longest dimension of smaller image
+				self.outputInfo.emit("Resizing...")
 				newsize = min(max(img1.size), max(img2.size))
 				newsize /= 5
 				img1.thumbnail((newsize, newsize), Image.ANTIALIAS)
 				img2.thumbnail((newsize, newsize), Image.ANTIALIAS)
-				
+
+			self.outputInfo.emit("Adjusting image brightness...")
 			enhancer1 = ImageEnhance.Brightness(img1)
 			enhancer2 = ImageEnhance.Brightness(img2)
 
@@ -207,11 +215,10 @@ class ImageCombine(QThread):
 			outfname += os.path.basename(pair[1])
 
 			img3 = ImageChops.add(enhancer1.enhance(0.5), enhancer2.enhance(0.5))
-
+			self.outputInfo.emit("Creating %s..." % outfname)
 			img3.save(os.path.join(self.outdir, outfname))
 
-			# Send calculated progress to progress bar
-			self.progress.emit((index+1) * 100 / len(self.filepairs))
+		self.outputInfo.emit("Operation completed!")
 
 
 if __name__ == '__main__':
