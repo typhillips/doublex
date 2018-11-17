@@ -191,6 +191,13 @@ class ImageCombine(QThread):
 				img1 = Image.open(pair[0])
 				img2 = Image.open(pair[1])
 
+			if self.resize:
+				# Resize to 20% of longest dimension of smaller
+				newsize = min(max(img1.size), max(img2.size))
+				newsize /= 5
+				img1.thumbnail((newsize, newsize), Image.ANTIALIAS)
+				img2.thumbnail((newsize, newsize), Image.ANTIALIAS)
+				
 			enhancer1 = ImageEnhance.Brightness(img1)
 			enhancer2 = ImageEnhance.Brightness(img2)
 
@@ -200,11 +207,6 @@ class ImageCombine(QThread):
 			outfname += os.path.basename(pair[1])
 
 			img3 = ImageChops.add(enhancer1.enhance(0.5), enhancer2.enhance(0.5))
-
-			if self.resize:
-				# Resize to 20% of longest dimension
-				newsize = max(img3.size) / 5
-				img3.thumbnail((newsize, newsize), Image.ANTIALIAS)
 
 			img3.save(os.path.join(self.outdir, outfname))
 
