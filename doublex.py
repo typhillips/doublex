@@ -5,7 +5,7 @@ import os
 import random
 
 from PyQt5.QtWidgets import QApplication, QWidget, QMessageBox, QFileDialog, QLabel, QPushButton, \
-                            QLineEdit, QHBoxLayout, QVBoxLayout, QGridLayout, QCheckBox, QAction, QPlainTextEdit
+                            QLineEdit, QHBoxLayout, QVBoxLayout, QGridLayout, QCheckBox, QPlainTextEdit
 from PyQt5.QtGui import QIcon, QTextCursor
 from PyQt5.Qt import Qt
 from PyQt5.QtCore import QThread, pyqtSignal
@@ -53,7 +53,6 @@ class DoubleX(QWidget):
 
 		self.txtConsole = QPlainTextEdit()
 		self.txtConsole.setReadOnly(True)
-		#self.txtConsole.setFixedHeight(200)
 
 		self.chkResize = QCheckBox("Resize")
 		self.chkConvertGS = QCheckBox("Convert to greyscale")
@@ -62,6 +61,7 @@ class DoubleX(QWidget):
 		self.btnExit = QPushButton("Exit")
 
 		self.txtDir1.textChanged.connect(self.refreshControls)
+		self.txtDir2.textChanged.connect(self.refreshControls)
 		self.txtOutDir.textChanged.connect(self.refreshControls)
 		self.btnBrowse1.clicked.connect(self.browseClicked)
 		self.btnBrowse2.clicked.connect(self.browseClicked)
@@ -102,7 +102,9 @@ class DoubleX(QWidget):
 
 	def refreshControls(self):
 		"""Update UI controls based on current UI state."""
-		if os.path.exists(self.txtDir1.text()) and os.path.exists(self.txtOutDir.text()):
+		# Directory 1, Directory 2 (if non blank) and Output Directory must be valid or Execute button is disabled
+		if os.path.exists(self.txtDir1.text()) and os.path.exists(self.txtOutDir.text()) and \
+		   (os.path.exists(self.txtDir2.text()) or self.txtDir2.text() == ""):
 			self.btnExecute.setEnabled(True)
 		else:
 			self.btnExecute.setEnabled(False)
@@ -133,7 +135,9 @@ class DoubleX(QWidget):
 		self.thread.finished.connect(self.actionCompleted)
 
 	def updateProgress(self, progressString):
+		"""Display progress text output from the ImageCombine thread."""
 		self.txtConsole.insertPlainText(progressString + "\n")
+		# Autoscrolls the text so the newest is always displayed at the bottom
 		self.txtConsole.moveCursor(QTextCursor.End)
 
 	def actionCompleted(self):
@@ -148,10 +152,19 @@ class DoubleX(QWidget):
 			if filename.upper().endswith(".JPG") or filename.upper().endswith(".JPEG"):
 				filelist1.append(os.path.join(self.txtDir1.text(), filename))
 
-		for filename in os.listdir(self.txtDir2.text()):
-			if filename.upper().endswith(".JPG") or filename.upper().endswith(".JPEG"):
-				filelist2.append(os.path.join(self.txtDir2.text(), filename))
+		if self.txtDir2.text() != "":
+			for filename in os.listdir(self.txtDir2.text()):
+				if filename.upper().endswith(".JPG") or filename.upper().endswith(".JPEG"):
+					filelist2.append(os.path.join(self.txtDir2.text(), filename))
+		# If second directory isn't specified, split files in first directory into two lists
+		else:
+			while len(filelist1) > len(filelist2):
+				# Remove a random file from the first list and add to the second list
+				filelist2.append(filelist1.pop(random.randint(0, len(filelist1)-1)))
 
+		if len(filelist1) == 0 or len(filelist2) == 0:
+			pass #TODO display popup that no files were found
+				
 		# First filelist should be shorter or the same length as the second list
 		#   Swap lists if first one is longer
 		if len(filelist1) > len(filelist2):
@@ -215,7 +228,7 @@ class ImageCombine(QThread):
 			outfname += os.path.basename(pair[1])
 
 			img3 = ImageChops.add(enhancer1.enhance(0.5), enhancer2.enhance(0.5))
-			self.outputInfo.emit("Creating %s..." % outfname)
+			self.outputInfo.emit("Creating %s...\n" % outfname)
 			img3.save(os.path.join(self.outdir, outfname))
 
 		self.outputInfo.emit("Operation completed!")
